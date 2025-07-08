@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "This app needs access to speech recognition.",
+        "NSMicrophoneUsageDescription": "This app needs access to the microphone."
+      }
     },
     "web": {
       "bundler": "metro",

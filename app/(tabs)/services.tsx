@@ -1,44 +1,84 @@
-import React, { useState } from 'react';
+import { firebaseApp } from './../firebaseConfig';
+import { getFirestore, collection, addDoc, getDocs } from 'firebase/firestore';
+const db = getFirestore(firebaseApp);
+type Service = {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+};
+
+const servicesCollection = collection(db, "services");
+
+// Example function to add a service
+const addService = async (service: Service) => {
+  try {
+    const docRef = await addDoc(servicesCollection, service);
+    console.log("Service added with ID: ", docRef.id);
+  } catch (e) {
+    console.error("Error adding service: ", e);
+  }
+};
+// Example function to fetch all services
+const getServices = async () => {
+  const snapshot = await getDocs(servicesCollection);
+  const servicesList = snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+  console.log('Fetched services:', servicesList);
+  return servicesList;
+};
+
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, Modal, TextInput } from 'react-native';
 import { Car, ShoppingCart, Stethoscope, HandHeart, MessageCircle, MapPin, Clock, User, IndianRupee, X } from 'lucide-react-native';
+const iconMap: { [key: string]: any } = {
+  Car,
+  ShoppingCart,
+  Stethoscope,
+  HandHeart,
+  MessageCircle,
+};
 
-const services = [
-  {
-    id: 'ride',
-    title: 'Book a Ride',
-    description: 'Safe and comfortable rides',
-    icon: Car,
-    color: '#3b82f6',
-  },
-  {
-    id: 'grocery',
-    title: 'Order Groceries',
-    description: 'Fresh groceries delivered',
-    icon: ShoppingCart,
-    color: '#10b981',
-  },
-  {
-    id: 'doctor',
-    title: 'Doctor Visit',
-    description: 'Home visit or clinic booking',
-    icon: Stethoscope,
-    color: '#f59e0b',
-  },
-  {
-    id: 'companion',
-    title: 'Companion Service',
-    description: 'Personal care assistance',
-    icon: HandHeart,
-    color: '#ef4444',
-  },
-  {
-    id: 'talk',
-    title: 'Talk to Someone',
-    description: 'Friendly conversation',
-    icon: MessageCircle,
-    color: '#06b6d4',
-  },
-];
+// Removed duplicate firebaseApp and getFirestore import
+// const db = getFirestore(firebaseApp); // Already declared above
+
+const saveBooking = async (bookingData) => {
+  try {
+    const bookingsCollection = collection(db, 'bookings');
+    const docRef = await addDoc(bookingsCollection, bookingData);
+    console.log('Booking saved with ID:', docRef.id);
+  } catch (error) {
+    console.error('Error saving booking:', error);
+  }
+};
+import Voice from '@react-native-voice/voice';
+useEffect(() => {
+  Voice.onSpeechStart = () => {
+    console.log('Speech recognition started');
+  };
+
+  Voice.onSpeechResults = (event: any) => {
+    console.log('Speech results:', event.value);
+    if (event.value && event.value.length > 0) {
+      setSpokenText(event.value[0]);
+    }
+  };
+
+  Voice.onSpeechEnd = () => {
+    console.log('Speech recognition ended');
+    setIsListening(false);
+  };
+
+  return () => {
+    Voice.destroy().then(Voice.removeAllListeners);
+  };
+}, []);
+
+const [isListening, setIsListening] = useState(false);
+const [spokenText, setSpokenText] = useState('');
 
 export default function ServicesScreen() {
   const [selectedService, setSelectedService] = useState<string | null>(null);
@@ -51,6 +91,17 @@ export default function ServicesScreen() {
     companion: false,
   });
 
+  const [services, setServices] = useState<Service[]>([]);
+
+  useEffect(() => {
+  const fetchServices = async () => {
+    const data = await getServices();
+    setServices(data as Service[]);
+  };
+
+  fetchServices();
+}, []);
+
   const handleServicePress = (serviceId: string) => {
     setSelectedService(serviceId);
     if (serviceId === 'ride') {
@@ -61,10 +112,10 @@ export default function ServicesScreen() {
     }
   };
 
-  const handleBookingSubmit = () => {
+  const handleBookingSubmit = async () => {
+    await saveBooking(bookingData);
     console.log('Booking submitted:', bookingData);
     setShowBookingModal(false);
-    // Here you would integrate with your booking API
   };
 
   const renderRideBookingModal = () => (
@@ -218,6 +269,19 @@ export default function ServicesScreen() {
       </SafeAreaView>
     </Modal>
   );
+const handleVoiceInput = async () => {
+  if (isListening) {
+    await Voice.stop();
+    setIsListening(false);
+  } else {
+    try {
+      await Voice.start('en-US');
+      setIsListening(true);
+    } catch (error) {
+      console.error('Error starting voice recognition:', error);
+    }
+  }
+};
 
   return (
     <SafeAreaView style={styles.container}>
@@ -228,23 +292,27 @@ export default function ServicesScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.servicesContainer}>
-          {services.map((service) => (
-            <TouchableOpacity
-              key={service.id}
-              style={styles.serviceCard}
-              onPress={() => handleServicePress(service.id)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.serviceIconContainer, { backgroundColor: service.color }]}>
-                <service.icon size={40} color="white" />
-              </View>
-              <View style={styles.serviceContent}>
-                <Text style={styles.serviceTitle}>{service.title}</Text>
-                <Text style={styles.serviceDescription}>{service.description}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+  {services.map((service) => {
+    const Icon = iconMap[service.icon];  // ✅ CORRECT: this is outside JSX
+
+    return (
+      <TouchableOpacity
+        key={service.id}
+        style={styles.serviceCard}
+        onPress={() => handleServicePress(service.id)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.serviceIconContainer, { backgroundColor: service.color }]}>
+          <Icon size={40} color="white" />  {/* ✅ This is JSX now */}
         </View>
+        <View style={styles.serviceContent}>
+          <Text style={styles.serviceTitle}>{service.title}</Text>
+          <Text style={styles.serviceDescription}>{service.description}</Text>
+        </View>
+      </TouchableOpacity>
+      );
+     })}
+  </View>
 
         {/* Recent Bookings */}
         <View style={styles.section}>
@@ -276,6 +344,26 @@ export default function ServicesScreen() {
           </View>
         </View>
       </ScrollView>
+      {/* Ride Booking Modal */}
+      <View style={{ margin: 20 }}>
+        <TouchableOpacity
+          onPress={handleVoiceInput}
+          style={{
+            backgroundColor: '#3b82f6',
+            padding: 15,
+            borderRadius: 8,
+            alignItems: 'center',
+          }}
+        >
+          <Text style={{ color: 'white', fontSize: 16 }}>
+            {isListening ? 'Stop Listening' : 'Start Voice Input'}
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={{ marginTop: 10 }}>
+          Spoken Text: {spokenText}
+        </Text>
+      </View>
 
       {renderRideBookingModal()}
     </SafeAreaView>
